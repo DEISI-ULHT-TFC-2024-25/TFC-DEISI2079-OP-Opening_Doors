@@ -5,12 +5,12 @@ import serial
 
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///site.db'  # Base de dados SQLite
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///site.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 
-SERIAL_PORT = "COM3"  # No Windows, usa COMx (ex: COM3, COM4)
-BAUD_RATE = 9600      # No Linux/macOS, usa "/dev/ttyUSB0" ou "/dev/ttyS0"
+SERIAL_PORT = "COM3"
+BAUD_RATE = 9600
 
 
 db = SQLAlchemy(app)
@@ -40,7 +40,7 @@ class Door(db.Model):
     name = db.Column(db.String(50), unique=True, nullable=False)
     status = db.Column(db.String(10), default="fechada")
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    arduino_channel = db.Column(db.String(20), nullable=False)  # <-- ADICIONADO
+    arduino_channel = db.Column(db.String(20), nullable=False)
 
     def __repr__(self):
         return f"Door('{self.name}', Status: {self.status}, User ID: {self.user_id}, Canal: {self.arduino_channel})"
