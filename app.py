@@ -62,11 +62,19 @@ def send_to_arduino(comando):
 @app.route('/open-door-arduino', methods=['POST'])
 def open_door_arduino():
     data = request.json
-    comando = data.get('comando', "abrir")
+    comando = data.get('comando', "ON")
 
     resposta, status = send_to_arduino(comando)
     return jsonify(resposta), status
 
+# Endpoint para fechar a porta
+@app.route('/close-door-arduino', methods=['POST'])
+def close_door_arduino():
+    data = request.json
+    comando = data.get('comando', "OFF")
+
+    resposta, status = send_to_arduino(comando)
+    return jsonify(resposta), status
 
 # Rota inicial para testar o servidor
 @app.route('/')
