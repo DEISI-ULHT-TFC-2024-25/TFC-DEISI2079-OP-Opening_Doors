@@ -2,6 +2,7 @@ from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 import serial
+from datetime import datetime
 
 
 app = Flask(__name__)
@@ -40,10 +41,24 @@ class Door(db.Model):
     name = db.Column(db.String(50), unique=True, nullable=False)
     status = db.Column(db.String(10), default="fechada")
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    arduino_channel = db.Column(db.String(20), nullable=False)
+    arduino_ip = db.Column(db.String(50), nullable=False)  
+    last_opened_at = db.Column(db.DateTime)  
 
     def __repr__(self):
-        return f"Door('{self.name}', Status: {self.status}, User ID: {self.user_id}, Canal: {self.arduino_channel})"
+        return f"Door('{self.name}', Status: {self.status}, User ID: {self.user_id}, IP: {self.arduino_ip})"
+
+
+
+
+import requests
+
+def send_to_arduino_wifi(arduino_ip, comando):
+    try:
+        url = f"http://{arduino_ip}/{comando}"
+        resposta = requests.get(url, timeout=3)
+        return {"message": resposta.text}, 200
+    except Exception as e:
+        return {"error": f"Erro na comunicação com o Arduino: {str(e)}"}, 500
 
 
 # Função para enviar comando ao Arduino
@@ -102,8 +117,8 @@ def register_user():
 @app.route('/create-door', methods=['POST'])
 def create_door():
     data = request.json
-    if not data or "name" not in data or "user_id" not in data:
-        return jsonify({"error": "É necessário fornecer 'name' e 'user_id'."}), 400
+    if not data or "name" not in data or "user_id" not in data or "arduino_ip" not in data:
+        return jsonify({"error": "É necessário fornecer 'name', 'user_id' e 'arduino_ip'."}), 400
 
     user = User.query.get(data['user_id'])
     if not user:
@@ -113,11 +128,16 @@ def create_door():
     if existing_door:
         return jsonify({"error": "Já existe uma porta com esse nome!"}), 400
 
-    new_door = Door(name=data['name'], user_id=data['user_id'])
+    new_door = Door(
+        name=data['name'],
+        user_id=data['user_id'],
+        arduino_ip=data['arduino_ip']
+    )
     db.session.add(new_door)
     db.session.commit()
-    
+
     return jsonify({"message": f"Porta '{new_door.name}' criada com sucesso!"}), 201
+
 
 # Endpoint para alternar estado da porta (abrir/fechar)
 @app.route('/toggle-door', methods=['POST'])
@@ -132,12 +152,25 @@ def toggle_door():
     if not door:
         return jsonify({"error": "Porta não encontrada."}), 404
 
-    # Alterna entre "aberta" e "fechada"
+    # Alterna status local
     new_status = "fechada" if door.status == "aberta" else "aberta"
     door.status = new_status
+
+    if new_status == "aberta":
+        door.last_opened_at = datetime.now()
     db.session.commit()
-    
-    return jsonify({"message": f"Porta '{door.name}' agora está {door.status}."}), 200
+
+    # Envia comando toggle ao Arduino via Wi-Fi
+    comando = "toggle"
+    resposta, status = send_to_arduino_wifi(door.arduino_ip, comando)
+
+    return jsonify({
+        "message": f"Porta '{door.name}' agora está {door.status}.",
+        "last_opened_at": door.last_opened_at,
+        "arduino_response": resposta
+    }), status
+
+
 
 # Endpoint para listar utilizadores
 @app.route('/users', methods=['GET'])
